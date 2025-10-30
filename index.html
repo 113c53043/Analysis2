@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>詐騙數據分析 v1.8 (網頁版)</title>
+    <title>詐騙數據分析 v1.9 (網頁版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
@@ -174,9 +174,6 @@
         showAllInstallmentsButton.classList.add('hidden'); 
     }
 
-    // =================================================================
-    // vvvvvvvv  修正點：讀取指定工作表 "詐騙案件案情清單"  vvvvvvvv
-    // =================================================================
     async function parseExcelFile(file) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
@@ -249,13 +246,11 @@
         return index !== -1 ? unitName.substring(0, index + 3) : unitName;
     }
 
-    function getYesterdayDateStr() {
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        return yesterday.getDate().toString();
-    }
-
+    // =================================================================
+    // vvvvvvvv  修正點：'generateFraudReport' 已更新  vvvvvvvv
+    // =================================================================
     function generateFraudReport(data) {
+        // --- 1. 欄位名稱查找 ---
         const amountColumnName = Object.keys(data[0]).find(k => k.includes('詐騙金額')) || '詐騙金額';
         const methodColumnName = Object.keys(data[0]).find(k => k.includes('詐騙手法')) || '詐騙手法';
         const institutionColumnName = Object.keys(data[0]).find(k => k.includes('冒用機構')) || '冒用機構';
@@ -264,11 +259,13 @@
 
         data.forEach(row => { row[amountColumnName] = (cleanAmountColumn([row], amountColumnName))[0]; });
         
+        // --- 2. 總體分析 ---
         const totalCases = data.length;
         const otherCasesCount = data.filter(r => r[methodColumnName] === '其他').length;
         const totalLoss = data.reduce((sum, row) => sum + (row[amountColumnName] || 0), 0);
         const outputPart1 = `1、全國受理案件(含其他${otherCasesCount}件)計${totalCases}件，總財損${formatCurrencyForTotal(totalLoss)}。`;
 
+        // --- 3. 高額案件分析 ---
         const highValueCases = data.filter(r => r[amountColumnName] >= 5000000);
         let outputPart2 = `2、全國5百萬以上財損${highValueCases.length}件，`;
         if (highValueCases.length > 0) {
@@ -287,6 +284,7 @@
             outputPart2 += `${maxLossDetails}。${methodsSummary}。`;
         } else { outputPart2 += "無相關案件。"; }
 
+        // --- 4. 解除分期付款分析 ---
         const installmentCases = data.filter(r => r[methodColumnName] && r[methodColumnName].includes('解除分期付款'));
         let installmentSummary = "";
         if (installmentCases.length > 0) {
@@ -301,7 +299,31 @@
             if (top3.length > 0) { installmentSummary = `(其中冒用機構最多為：${top3.map(([name, count]) => `${name}${count}件`).join(', ')})`; }
         }
         const outputPart3 = `3、解除分期付款詐騙${installmentCases.length}件${installmentSummary}。`;
-        const dutyReport = `昨(${getYesterdayDateStr()})日08-20 00副值日、20-02 00值日、02-08 00代理。`;
+        
+        // --- 5. 值日報告 (讀取 Excel 中的最新日期) ---
+        const dateColName = Object.keys(data[0]).find(c => c && c.includes('受理時間'));
+        let reportDay = "??"; // 預設值
+
+        if (dateColName) {
+            const dates = data
+                .map(row => row[dateColName] ? new Date(row[dateColName]) : null)
+                .filter(d => d && !isNaN(d.getTime()));
+            
+            if (dates.length > 0) {
+                const maxDate = new Date(Math.max.apply(null, dates));
+                reportDay = maxDate.getDate().toString(); // 取得該日期的 "日" (e.g., 29)
+            }
+        } else {
+            // 如果找不到 "受理時間" 欄位，才退回使用系統昨天的日期
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            reportDay = yesterday.getDate().toString();
+            console.log("未找到 '受理時間' 欄位，值日報告日期將使用系統昨日日期。");
+        }
+    
+        const dutyReport = `昨(${reportDay})日08-20 00副值日、20-02 00值日、02-08 00代理。`;
+        
+        // --- 6. 組合報告 ---
         return `詐騙案件總體分析報告\n${'='.repeat(40)}\n${outputPart1}\n${outputPart2}\n${outputPart3}\n${dutyReport}`;
     }
 
@@ -395,7 +417,7 @@
         }, {});
         
         const reportLines = highFreqPhones.sort((a, b) => b[1] - a[1]).map(([phone, count]) => {
-            const caseSet = caseInfoMapping[phone]; // G取得這支電話的 Set<案號>
+            const caseSet = caseInfoMapping[phone]; // 取得這支電話的 Set<案號>
             if (!caseSet || caseSet.size === 0) {
                  return `  - 電話「${phone}」出現 ${count} 次，相關案件：無詳細資料`;
             }
