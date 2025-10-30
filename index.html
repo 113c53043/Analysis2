@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>詐騙數據分析 v1.71 (網頁版)</title>
+    <title>詐騙數據分析 v1.8 (網頁版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
@@ -174,6 +174,9 @@
         showAllInstallmentsButton.classList.add('hidden'); 
     }
 
+    // =================================================================
+    // vvvvvvvv  修正點：讀取指定工作表 "詐騙案件案情清單"  vvvvvvvv
+    // =================================================================
     async function parseExcelFile(file) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
@@ -181,10 +184,20 @@
                 try {
                     const data = new Uint8Array(e.target.result);
                     const workbook = XLSX.read(data, { type: 'array', cellDates: true });
-                    const sheetName = workbook.SheetNames[0];
+
+                    const targetSheetName = "詐騙案件案情清單";
+                    let sheetName;
+
+                    if (workbook.SheetNames.includes(targetSheetName)) {
+                        sheetName = targetSheetName;
+                    } else {
+                        sheetName = workbook.SheetNames[0]; // 如果找不到，就讀取第一個
+                        console.log(`未找到工作表 "${targetSheetName}"，已自動讀取第一個工作表 "${sheetName}"`);
+                    }
+
                     const worksheet = workbook.Sheets[sheetName];
                     const range = XLSX.utils.decode_range(worksheet['!ref']);
-                    range.s.r = 2; 
+                    range.s.r = 2; // 跳過前兩行 (skiprows=2)
                     worksheet['!ref'] = XLSX.utils.encode_range(range);
                     const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: null });
                     resolve(jsonData);
@@ -292,15 +305,11 @@
         return `詐騙案件總體分析報告\n${'='.repeat(40)}\n${outputPart1}\n${outputPart2}\n${outputPart3}\n${dutyReport}`;
     }
 
-    // =================================================================
-    // vvvvvvvv  v1.7 程式碼 (只顯示純粹案號) vvvvvvvv
-    // =================================================================
     function analyzePhoneNumbers(data) {
         const originalColumns = Object.keys(data[0] || {});
         const phoneCol = originalColumns.find(c => c && c.includes('詐騙電話')) || '詐騙電話';
         const caseNoCol = originalColumns.find(c => c && c.includes('開案編號')) || '開案編號';
         const idCol = originalColumns.find(c => c && c.includes('身分證號')) || '身分證號';
-        // const typeCol = originalColumns.find(c => c && c.includes('案件類型')) || '案件類型'; // 不再需要
 
         if (!originalColumns.includes(phoneCol) || !originalColumns.includes(caseNoCol)) {
             return `檔案缺少 '${phoneCol}' 或 '${caseNoCol}' 基礎欄位。`;
@@ -375,33 +384,23 @@
             return `${titleLine} ${combinedWarning}\n${'='.repeat(40)}\n無出現3次以上之詐騙電話。`;
         }
         
-        // 修正點：建立一個只包含純粹案號的資料結構
-        // 結構： { "電話號碼": Set<"案號"> }
         const caseInfoMapping = explodedData.reduce((map, row) => {
             const phone = row[phoneCol];
             if (!map[phone]) map[phone] = new Set(); // 使用 Set 來儲存 案號
-
             const caseNo = String(row[caseNoCol] || '');
             if (caseNo) {
                  map[phone].add(caseNo); // 只把 "案號" 加入 Set
             }
-            
             return map;
         }, {});
         
-        // 修正點：重新組合報告字串 (只顯示案號)
         const reportLines = highFreqPhones.sort((a, b) => b[1] - a[1]).map(([phone, count]) => {
-            const caseSet = caseInfoMapping[phone]; // 取得這支電話的 Set<案號>
+            const caseSet = caseInfoMapping[phone]; // G取得這支電話的 Set<案號>
             if (!caseSet || caseSet.size === 0) {
                  return `  - 電話「${phone}」出現 ${count} 次，相關案件：無詳細資料`;
             }
-
-            // 1. 取得所有案號並排序
             const sortedCases = Array.from(caseSet).sort();
-            
-            // 2. 把所有案號組合起來
             const caseDetails = sortedCases.join("、");
-
             return `  - 電話「${phone}」出現 ${count} 次，相關案件：${caseDetails}`;
         });
         
