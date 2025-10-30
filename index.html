@@ -321,7 +321,7 @@
             console.log("未找到 '受理時間' 欄位，值日報告日期將使用系統昨日日期。");
         }
     
-        const dutyReport = `昨(${reportDay})日08-20 00副值日、20-02 00值日、02-08 00代理。`;
+        const dutyReport = `昨(${reportDay})日08-20      副值日、20-02      值日、02-08      代理。`;
         
         // --- 6. 組合報告 ---
         return `詐騙案件總體分析報告\n${'='.repeat(40)}\n${outputPart1}\n${outputPart2}\n${outputPart3}\n${dutyReport}`;
