@@ -4,9 +4,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>詐騙數據分析工具 (網頁版)</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
     <style>
+        /* 預設隱藏整個 body，並加上平滑的漸顯動畫 */
+        html { 
+            visibility: hidden; 
+            opacity: 0; 
+            transition: opacity 0.3s ease; 
+        }
+        /* 當被加上 tailwind-loaded class 時，顯示畫面 */
+        html.tailwind-loaded { 
+            visibility: visible; 
+            opacity: 1; 
+        }
+        
         body {
             font-family: 'Inter', 'Microsoft JhengHei', sans-serif;
         }
@@ -18,6 +29,19 @@
             to { transform: rotate(360deg); }
         }
     </style>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script>
+        // 當 DOM 載入完成，且給予 Tailwind 一點點時間生成 CSS 後，解除隱藏
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                document.documentElement.classList.add('tailwind-loaded');
+            }, 100); // 設定 100 毫秒緩衝，確保樣式已套用
+        });
+    </script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body class="bg-gray-100 text-gray-800 flex items-center justify-center min-h-screen p-4">
 
@@ -243,7 +267,7 @@
     }
 
     // =================================================================
-    // 案件分析函式已更新 - 支援合併計算「假消費異常詐騙（騙買家）及假交易異常詐騙（騙賣家）總計X件」
+    // 案件分析函式：已整合「假消費/交易異常詐騙」邏輯
     // =================================================================
     function generateFraudReport(data) {
         const amountColumnName = Object.keys(data[0]).find(k => k.includes('詐騙金額')) || '詐騙金額';
@@ -293,6 +317,7 @@
             // 統計冒用機構 (買家與賣家合併計算)
             const institutionCounts = combinedFakeCases.reduce((counts, row) => {
                 const standardized = standardizeInstitution(row[institutionColumnName]);
+                // 若不想隱藏「不詳」，可以將這個 if 條件改為 if (standardized)
                 if (standardized && standardized !== '不詳') { counts[standardized] = (counts[standardized] || 0) + 1; }
                 return counts;
             }, {});
@@ -306,7 +331,6 @@
             }
         }
         
-        // 將分別顯示改為顯示總件數
         const outputPart3 = `3、假消費異常詐騙（騙買家）及假交易異常詐騙（騙賣家）${totalFakeCases}件${institutionSummary}。`;
         
         // 4. 值日報告
