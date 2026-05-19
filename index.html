@@ -6,7 +6,7 @@
     <title>詐騙數據分析工具 (網頁版)</title>
     
     <style>
-        /* 預設隱藏整個 body，並加上平滑的漸顯動畫 */
+        /* 預設隱藏整個 html，並加上平滑的漸顯動畫 */
         html { 
             visibility: hidden; 
             opacity: 0; 
@@ -37,7 +37,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             setTimeout(() => {
                 document.documentElement.classList.add('tailwind-loaded');
-            }, 100); // 設定 100 毫秒緩衝，確保樣式已套用
+            }, 100); 
         });
     </script>
 
@@ -317,7 +317,6 @@
             // 統計冒用機構 (買家與賣家合併計算)
             const institutionCounts = combinedFakeCases.reduce((counts, row) => {
                 const standardized = standardizeInstitution(row[institutionColumnName]);
-                // 若不想隱藏「不詳」，可以將這個 if 條件改為 if (standardized)
                 if (standardized && standardized !== '不詳') { counts[standardized] = (counts[standardized] || 0) + 1; }
                 return counts;
             }, {});
@@ -339,6 +338,9 @@
         return `詐騙案件總體分析報告\n${'='.repeat(40)}\n${outputPart1}\n${outputPart2}\n${outputPart3}\n${dutyReport}`;
     }
 
+    // =================================================================
+    // 功能二：高頻詐騙電話分析
+    // =================================================================
     function analyzePhoneNumbers(data) {
         const originalColumns = Object.keys(data[0] || {});
         const phoneCol = originalColumns.find(c => c && c.includes('詐騙電話')) || '詐騙電話';
@@ -429,13 +431,10 @@
             const phone = row[phoneCol];
             if (!map[phone]) map[phone] = new Set();
             let displayParts = [];
-            if (dateColName && row[dateColName]) {
-                try {
-                    const date = new Date(row[dateColName]);
-                    displayParts.push(isNaN(date) ? '' : date.toISOString().split('T')[0]);
-                } catch { /* ignore */ }
-            }
+            
+            // 這裡已經移除日期顯示，只保留存粹的案號與案件類型
             displayParts.push(String(row[caseNoCol] || ''));
+            
             if (typeCol && originalColumns.includes(typeCol)) {
                 displayParts.push(`(${String(row[typeCol] || '無類型')})`);
             }
